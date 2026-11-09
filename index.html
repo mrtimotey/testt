@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proctor Lite — контроль активности пользователя</title>
+<style>
+  :root{
+    --bg:#0b0f17; --bg2:#111827; --card:#131c2b; --card2:#0f1725;
+    --line:#22304a; --txt:#e8eefc; --muted:#8aa0c4;
+    --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#38bdf8; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 15% -10%, #16233a 0%, var(--bg) 55%) fixed;
+    color:var(--txt); font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 16px 40px}
+  /* ---------- header ---------- */
+  .top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{
+    width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:19px;
+    background:linear-gradient(145deg,#1d4ed8,#0ea5e9);box-shadow:0 6px 20px rgba(14,165,233,.35);color:#fff;
+  }
+  .brand h1{font-size:19px;margin:0;letter-spacing:.2px}
+  .brand .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .status{
+    display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;
+    border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:600;white-space:nowrap;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}70%{box-shadow:0 0 0 9px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  .status.warn{border-color:#5c4212;background:#231a08;color:#fbbf24}
+  .status.warn .dot{background:var(--amber);animation:none}
+  .status.bad{border-color:#5c1b1b;background:#250c0c;color:#fca5a5}
+  .status.bad .dot{background:var(--red);animation:none}
+  /* ---------- alert ---------- */
+  .alert{
+    display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:14px;margin-bottom:14px;
+    border:1px solid #1d3a2a;background:linear-gradient(180deg,#0f2018,#0d1a14);font-weight:600;font-size:14.5px;
+    transition:background .2s,border-color .2s,color .2s;
+  }
+  .alert .ico{font-size:19px;line-height:1}
+  .alert.warn{border-color:#5c4212;background:linear-gradient(180deg,#251c09,#1a1407);color:#fbbf24}
+  .alert.bad{border-color:#5c1b1b;background:linear-gradient(180deg,#2a0f0f,#1c0a0a);color:#fecaca}
+  .alert small{display:block;font-weight:400;color:var(--muted);margin-top:3px;font-size:12.5px}
+  .alert.bad small,.alert.warn small{color:#c8b391}
+  /* ---------- controls ---------- */
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  button,select{
+    font:inherit;font-size:13px;color:var(--txt);background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:9px 13px;cursor:pointer;transition:.15s;font-weight:600;
+  }
+  button:hover{background:#1a2537;border-color:#31456a}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(145deg,#1d4ed8,#0284c7);border-color:#1d4ed8}
+  button.primary:hover{filter:brightness(1.12)}
+  button.danger{border-color:#5c1b1b;color:#fca5a5}
+  button.ghost{background:transparent}
+  select{padding:9px 10px}
+  .spacer{flex:1}
+  .timer{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+  /* ---------- layout ---------- */
+  .cols{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;align-items:start}
+  @media (max-width:960px){.cols{grid-template-columns:1fr}}
+  /* ---------- cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
+  .card{
+    background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:13px;
+    padding:12px 13px;position:relative;overflow:hidden;transition:border-color .2s,background .2s;
+  }
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700}
+  .card .v{font-size:17px;font-weight:800;margin-top:5px;letter-spacing:.2px;display:flex;align-items:center;gap:7px}
+  .card .m{font-size:11.5px;color:var(--muted);margin-top:4px;min-height:14px;font-variant-numeric:tabular-nums}
+  .card.ok{border-color:#1d3a2a}
+  .card.warn{border-color:#5c4212;background:linear-gradient(180deg,#221a09,#181206)}
+  .card.bad{border-color:#5c1b1b;background:linear-gradient(180deg,#250e0e,#190a0a)}
+  .card.ok .v{color:#86efac}
+  .card.warn .v{color:#fbbf24}
+  .card.bad .v{color:#fca5a5}
+  .bar{height:5px;border-radius:99px;background:#1b2537;margin-top:9px;overflow:hidden}
+  .bar > i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#22c55e,#eab308,#ef4444);transition:width .3s}
+  /* ---------- log ---------- */
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .panel-head h2{font-size:13.5px;margin:0;letter-spacing:.3px;text-transform:uppercase;color:#c3d3ee}
+  .panel-head .cnt{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .log{height:min(64vh,640px);overflow-y:auto;padding:8px 8px 12px}
+  .row{
+    display:grid;grid-template-columns:56px 1fr;gap:10px;padding:7px 8px;border-radius:9px;font-size:13px;
+    animation:in .18s ease-out;
+  }
+  @keyframes in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+  .row + .row{margin-top:2px}
+  .row:hover{background:#16202f}
+  .row .t{color:#5f7699;font-variant-numeric:tabular-nums;font-size:11.5px;padding-top:2px}
+  .row .msg{display:flex;gap:7px}
+  .row .tag{font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:6px;height:fit-content;white-space:nowrap;margin-top:1px}
+  .row.info .tag{background:#12253a;color:#7dd3fc}
+  .row.ok .tag{background:#0f2a1b;color:#86efac}
+  .row.warn .tag{background:#2a1e07;color:#fbbf24}
+  .row.danger .tag{background:#2c1010;color:#fca5a5}
+  .row.danger{background:#1a0c0c}
+  .log::-webkit-scrollbar{width:9px}
+  .log::-webkit-scrollbar-thumb{background:#243149;border-radius:9px}
+  /* ---------- stats strip ---------- */
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  @media (max-width:640px){.strip{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+  .stat span{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+  /* ---------- camera ---------- */
+  .cam{display:none;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:16px}
+  .cam.on{display:flex}
+  .cam video{width:220px;border-radius:10px;background:#000;transform:scaleX(-1)}
+  .cam .cam-info{font-size:12.5px;color:var(--muted)}
+  .cam .cam-info b{color:var(--txt)}
+  /* ---------- modal ---------- */
+  .modal{position:fixed;inset:0;background:rgba(4,7,12,.78);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;backdrop-filter:blur(3px)}
+  .modal.on{display:flex}
+  .modal-box{background:var(--bg2);border:1px solid var(--line);border-radius:16px;max-width:820px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-box header{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .modal-box header h3{margin:0;font-size:14.5px}
+  .modal-box header .spacer{flex:1}
+  .modal-box pre{margin:0;padding:16px;overflow:auto;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#b9cbe6;white-space:pre-wrap;word-break:break-word}
+  footer{margin-top:22px;color:#5a6f92;font-size:12px;text-align:center}
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translate(-50%,80px);opacity:0;transition:.25s;
+    background:#16233a;border:1px solid #2a3d5e;color:#dbe7fb;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;z-index:60;
+  }
+  .toast.on{transform:translate(-50%,0);opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="logo">◉</div>
+      <div>
+        <h1>Proctor Lite</h1>
+        <div class="sub">Проверка присутствия на вкладке, фокуса окна и действий пользователя</div>
+      </div>
+    </div>
+    <div class="status" id="statusPill"><span class="dot"></span><span id="statusText">мониторинг запущен</span></div>
+  </div>
+
+  <div class="alert" id="alert">
+    <span class="ico" id="alertIco">✅</span>
+    <div>
+      <span id="alertTitle">Всё в порядке — пользователь на вкладке</span>
+      <small id="alertSub">События фиксируются и выводятся на экран в реальном времени</small>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="btnPause">⏸ Пауза</button>
+    <button id="btnFs">⛶ Полный экран</button>
+    <button id="btnCam">📷 Камера</button>
+    <button id="btnReport">📄 Отчёт</button>
+    <button class="danger" id="btnReset">↺ Сброс</button>
+    <div class="spacer"></div>
+    <span class="timer">сессия: <b id="sessionTimer">00:00</b></span>
+    <select id="idleSel" title="Порог простоя">
+      <option value="5000">простой 5 с</option>
+      <option value="10000">простой 10 с</option>
+      <option value="15000" selected>простой 15 с</option>
+      <option value="30000">простой 30 с</option>
+      <option value="60000">простой 60 с</option>
+    </select>
+  </div>
+
+  <div class="strip">
+    <div class="stat"><span>Уходов со вкладки</span><b id="sAway">0</b></div>
+    <div class="stat"><span>Вне вкладки</span><b id="sAwayTime">0 с</b></div>
+    <div class="stat"><span>Потерь фокуса</span><b id="sBlur">0</b></div>
+    <div class="stat"><span>Уровень риска</span><b id="sRisk">0%</b></div>
+  </div>
+
+  <div class="cam" id="camBox">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="cam-info">
+      <b>Камера включена</b><br>
+      активность в кадре: <b id="camMotion">нет данных</b><br>
+      яркость кадра: <b id="camLight">—</b><br>
+      <span style="font-size:11.5px">Локальная эвристика по разнице кадров (без распознавания лиц и без отправки куда-либо).</span>
+      <div style="margin-top:8px"><button class="danger" id="btnCamOff">Выключить камеру</button></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="grid" id="cards">
+
+        <div class="card" id="c-tab">
+          <div class="k">Вкладка</div>
+          <div class="v" id="v-tab">активна</div>
+          <div class="m" id="m-tab">уходов: 0</div>
+        </div>
+
+        <div class="card" id="c-focus">
+          <div class="k">Фокус окна</div>
+          <div class="v" id="v-focus">в фокусе</div>
+          <div class="m" id="m-focus">потерь: 0</div>
+        </div>
+
+        <div class="card" id="c-fs">
+          <div class="k">Полный экран</div>
+          <div class="v" id="v-fs">нет</div>
+          <div class="m" id="m-fs">выйти из него — тоже событие</div>
+        </div>
+
+        <div class="card" id="c-mouse">
+          <div class="k">Курсор в окне</div>
+          <div class="v" id="v-mouse">внутри</div>
+          <div class="m" id="m-mouse">выходов: 0</div>
+        </div>
+
+        <div class="card" id="c-idle">
+          <div class="k">Активность</div>
+          <div class="v" id="v-idle">есть</div>
+          <div class="m" id="m-idle">последнее действие: 0 с назад</div>
+        </div>
+
+        <div class="card" id="c-keys">
+          <div class="k">Клавиши</div>
+          <div class="v" id="v-keys">0</div>
+          <div class="m" id="m-keys">подозрительных: 0</div>
+        </div>
+
+        <div class="card" id="c-clip">
+          <div class="k">Буфер обмена</div>
+          <div class="v" id="v-clip">0 / 0</div>
+          <div class="m" id="m-clip">копий / вставок</div>
+        </div>
+
+        <div class="card" id="c-ctx">
+          <div class="k">Правый клик / выделение</div>
+          <div class="v" id="v-ctx">0 / 0</div>
+          <div class="m" id="m-ctx">contextmenu / selectstart</div>
+        </div>
+
+        <div class="card" id="c-dev">
+          <div class="k">DevTools</div>
+          <div class="v" id="v-dev">не обнаружены</div>
+          <div class="m" id="m-dev">эвристика по размеру окна</div>
+        </div>
+
+        <div class="card" id="c-screen">
+          <div class="k">Окно / экран</div>
+          <div class="v" id="v-screen">—</div>
+          <div class="m" id="m-screen">DPR — · экранов: —</div>
+        </div>
+
+        <div class="card" id="c-net">
+          <div class="k">Сеть</div>
+          <div class="v" id="v-net">online</div>
+          <div class="m" id="m-net">переключений: 0 · <span id="m-ping">—</span></div>
+        </div>
+
+        <div class="card" id="c-cam">
+          <div class="k">Камера</div>
+          <div class="v" id="v-cam">выкл.</div>
+          <div class="m" id="m-cam">опционально</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Журнал событий</h2>
+        <span class="cnt" id="logCount">0</span>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <footer>
+    Proctor Lite · статическая страница, данные никуда не отправляются и живут только в этой вкладке
+  </footer>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <header>
+      <h3>Отчёт о сессии</h3>
+      <div class="spacer"></div>
+      <button id="btnCopy">Копировать</button>
+      <button id="btnDownload">Скачать .json</button>
+      <button class="ghost" id="btnCloseModal">✕</button>
+    </header>
+    <pre id="reportPre"></pre>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= состояние ================= */
+  var S = {
+    running: true,
+    startedAt: Date.now(),
+    sessionId: "S-" + Math.random().toString(36).slice(2,8).toUpperCase(),
+    tabVisible: !document.hidden,
+    focus: document.hasFocus ? document.hasFocus() : true,
+    hiddenSince: null,
+    awayCount: 0,
+    awayTotalMs: 0,
+    blurSince: null,
+    blurCount: 0,
+    blurTotalMs: 0,
+    fullscreen: !!document.fullscreenElement,
+    fsExits: 0,
+    mouseInside: true,
+    mouseOuts: 0,
+    keystrokes: 0,
+    suspicious: 0,
+    copies: 0,
+    pastes: 0,
+    cuts: 0,
+    contextMenu: 0,
+    selects: 0,
+    drags: 0,
+    devtools: false,
+    idle: false,
+    idleThreshold: 15000,
+    idleCount: 0,
+    lastActivity: Date.now(),
+    netSwitches: 0,
+    online: navigator.onLine,
+    camOn: false,
+    events: []
+  };
+
+  var els = {};
+  function $(id){ return document.getElementById(id); }
+  [
+    "statusPill","statusText","alert","alertIco","alertTitle","alertSub",
+    "btnPause","btnFs","btnCam","btnCamOff","btnReport","btnReset","sessionTimer","idleSel",
+    "sAway","sAwayTime","sBlur","sRisk",
+    "c-tab","v-tab","m-tab","c-focus","v-focus","m-focus","c-fs","v-fs","m-fs",
+    "c-mouse","v-mouse","m-mouse","c-idle","v-idle","m-idle","c-keys","v-keys","m-keys",
+    "c-clip","v-clip","m-clip","c-ctx","v-ctx","m-ctx","c-dev","v-dev","m-dev",
+    "c-screen","v-screen","m-screen","c-net","v-net","m-net","m-ping","c-cam","v-cam","m-cam",
+    "log","logCount","camBox","camVideo","camMotion","camLight",
+    "modal","reportPre","btnCopy","btnDownload","btnCloseModal","toast"
+  ].forEach(function(id){ els[id] = $(id); });
+
+  /* ================= утилиты ================= */
+  function pad(n){ return n < 10 ? "0" + n : "" + n; }
+  function clock(ms){
+    var s = Math.floor(ms/1000);
+    var h = Math.floor(s/3600), m = Math.floor(s%3600/60), ss = s%60;
+    return (h>0 ? h + ":" + pad(m) : pad(m)) + ":" + pad(ss);
+  }
+  function secs(ms){ return Math.round(ms/1000) + " с"; }
+  function stamp(){
+    var d = new Date();
+    return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+  var toastTimer = null;
+  function toast(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ els.toast.classList.remove("on"); }, 2200);
+  }
+
+  /* ================= журнал ================= */
+  var SEV_TAG = { info:"INFO", ok:"OK", warn:"WARN", danger:"ALERT" };
+  function log(sev, msg){
+    var item = { t: new Date().toISOString(), rel: Date.now() - S.startedAt, sev: sev, msg: msg };
+    S.events.push(item);
+    if (S.events.length > 600) S.events.shift();
+
+    var row = document.createElement("div");
+    row.className = "row " + sev;
+    var t = document.createElement("div");
+    t.className = "t"; t.textContent = stamp();
+    var body = document.createElement("div");
+    body.className = "msg";
+    var tag = document.createElement("span");
+    tag.className = "tag"; tag.textContent = SEV_TAG[sev] || "INFO";
+    var txt = document.createElement("span");
+    txt.textContent = msg;
+    body.appendChild(tag); body.appendChild(txt);
+    row.appendChild(t); row.appendChild(body);
+
+    var nearBottom = els.log.scrollHeight - els.log.scrollTop - els.log.clientHeight < 90;
+    els.log.appendChild(row);
+    while (els.log.children.length > 400) els.log.removeChild(els.log.firstChild);
+    if (nearBottom) els.log.scrollTop = els.log.scrollHeight;
+    els.logCount.textContent = S.events.length;
+  }
+
+  /* ================= обработчики: вкладка и фокус ================= */
+  document.addEventListener("visibilitychange", function(){
+    if (!S.running) return;
+    if (document.hidden){
+      S.tabVisible = false;
+      S.hiddenSince = Date.now();
+      S.awayCount++;
+      document.title = "⚠ Вы ушли со вкладки";
+      log("danger", "Пользователь покинул вкладку (visibilitychange: hidden)");
+      render();
+    } else {
+      S.tabVisible = true;
+      var away = S.hiddenSince ? Date.now() - S.hiddenSince : 0;
+      if (S.hiddenSince) S.awayTotalMs += away;
+      S.hiddenSince = null;
+      document.title = "Proctor Lite — контроль активности пользователя";
+      log("ok", "Пользователь вернулся на вкладку" + (away ? " (отсутствовал " + secs(away) + ")" : ""));
+      if (away > 1500) toast("Вы отсутствовали " + secs(away));
+      render();
+    }
+  });
+  // уход со страницы
+  window.addEventListener("beforeunload", function(){
+    if (S.running) log("warn", "Попытка закрыть или перезагрузить страницу");
+  });
+  window.addEventListener("pagehide", function(){
+    if (S.running) log("warn", "pagehide: страница уходит в фон / закрывается");
+  });
+
+  window.addEventListener("blur", function(){
+    if (!S.running) return;
+    S.focus = false;
+    S.blurSince = Date.now();
+    S.blurCount++;
+    log("warn", "Окно потеряло фокус (blur) — возможно, переключение на другое приложение");
+    render();
+  });
+  window.addEventListener("focus", function(){
+    if (!S.running) return;
+    S.focus = true;
+    var d = S.blurSince ? Date.now() - S.blurSince : 0;
+    if (S.blurSince) S.blurTotalMs += d;
+    S.blurSince = null;
+    log("ok", "Окно снова в фокусе" + (d ? " (без фокуса " + secs(d) + ")" : ""));
+    render();
+  });
+
+  /* ================= полный экран ================= */
+  document.addEventListener("fullscreenchange", function(){
+    var was = S.fullscreen;
+    S.fullscreen = !!document.fullscreenElement;
+    if (S.running && was && !S.fullscreen){
+      S.fsExits++;
+      log("danger", "Пользователь вышел из полноэкранного режима");
+    } else if (S.running && !was && S.fullscreen){
+      log("ok", "Включён полноэкранный режим");
+    }
+    render();
+  });
+
+  /* ================= курсор ================= */
+  document.addEventListener("mouseleave", function(){
+    if (!S.running) return;
+    S.mouseInside = false;
+    S.mouseOuts++;
+    log("info", "Курсор покинул окно — внимание пользователя могло переключиться");
+    render();
+  });
+  document.addEventListener("mouseenter", function(){
+    S.mouseInside = true;
+    render();
+  });
+  document.addEventListener("mousemove", markActivity, { passive: true });
+
+  /* ================= клавиатура ================= */
+  function markActivity(){
+    S.lastActivity = Date.now();
+    if (S.idle){ S.idle = false; }
+  }
+  document.addEventListener("keydown", function(e){
+    markActivity();
+    if (!S.running) return;
+    S.keystrokes++;
+    var k = (e.key || "").toLowerCase();
+    var combo = [];
+    if (e.ctrlKey || e.metaKey) combo.push("ctrl/meta");
+    if (e.shiftKey) combo.push("shift");
+    if (e.altKey) combo.push("alt");
+    var label = (combo.length ? combo.join("+") + "+" : "") + (e.key || "?");
+
+    var suspicious = false;
+    if (e.key === "F12") suspicious = true;
+    if (e.key === "PrintScreen" || k === "printscreen") suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && [ "i","j","c","k" ].indexOf(k) >= 0) suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && k === "u") suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && k === "p") suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && k === "s") suspicious = true;
+    if (e.altKey && k === "tab") suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && [ "t","n","w" ].indexOf(k) >= 0) suspicious = true;
+    if ((e.ctrlKey || e.metaKey) && k === "tab") suspicious = true;
+
+    if (suspicious){
+      S.suspicious++;
+      log("danger", "Подозрительная комбинация клавиш: " + label);
+    }
+    render();
+  }, { passive: true });
+
+  /* ================= буфер обмена / меню / выделение / drag ================= */
+  document.addEventListener("copy", function(){
+    markActivity();
+    if (!S.running) return;
+    S.copies++;
+    log("info", "Копирование (copy)");
+    render();
+  });
+  document.addEventListener("cut", function(){
+    markActivity();
+    if (!S.running) return;
+    S.cuts++;
+    log("warn", "Вырезание (cut)");
+    render();
+  });
+  document.addEventListener("paste", function(){
+    markActivity();
+    if (!S.running) return;
+    S.pastes++;
+    log("warn", "Вставка из буфера обмена (paste)");
+    render();
+  });
+  document.addEventListener("contextmenu", function(){
+    if (!S.running) return;
+    S.contextMenu++;
+    log("warn", "Открыто контекстное меню (правый клик)");
+    render();
+  });
+  document.addEventListener("selectstart", function(){
+    if (!S.running) return;
+    S.selects++;
+    render();
+  });
+  document.addEventListener("dragstart", function(){
+    if (!S.running) return;
+    S.drags++;
+    log("info", "Начато перетаскивание (drag)");
+    render();
+  });
+  document.addEventListener("drop", function(e){
+    if (!S.running) return;
+    log("warn", "В окно перетащен объект (drop)");
+  });
+  document.addEventListener("click", markActivity, { passive: true });
+  window.addEventListener("scroll", markActivity, { passive: true });
+  window.addEventListener("wheel", markActivity, { passive: true });
+  window.addEventListener("touchstart", markActivity, { passive: true });
+  window.addEventListener("touchmove", markActivity, { passive: true });
+  window.addEventListener("beforeprint", function(){
+    if (S.running) log("warn", "Попытка печати страницы (beforeprint)");
+  });
+
+  /* ================= сеть ================= */
+  window.addEventListener("online", function(){
+    S.online = true; S.netSwitches++;
+    if (S.running) log("ok", "Соединение восстановлено (online)");
+    render();
+  });
+  window.addEventListener("offline", function(){
+    S.online = false; S.netSwitches++;
+    if (S.running) log("danger", "Соединение потеряно (offline)");
+    render();
+  });
+
+  /* ================= размер окна / экрана ================= */
+  var dprBase = window.devicePixelRatio || 1;
+  var lastGeom = "";
+  function geomCheck(){
+    var g = window.innerWidth + "x" + window.innerHeight + "@" + (window.devicePixelRatio || 1);
+    if (lastGeom && g !== lastGeom && S.running){
+      log("info", "Изменился размер окна / масштаб: " + g);
+    }
+    lastGeom = g;
+    renderScreen();
+  }
+  window.addEventListener("resize", geomCheck);
+  window.addEventListener("orientationchange", function(){
+    if (S.running) log("info", "Смена ориентации экрана");
+    geomCheck();
+  });
+
+  var screensInfo = "—";
+  function probeScreens(){
+    try {
+      if (typeof window.getScreenDetails === "function"){
+        window.getScreenDetails().then(function(d){
+          if (!d || !d.screens) return;
+          screensInfo = d.screens.length + " (" + (d.screens.length > 1 ? "несколько" : "один") + ")";
+          if (d.screens.length > 1 && S.running){
+            log("warn", "Обнаружено несколько экранов: " + d.screens.length);
+          }
+          renderScreen();
+        }).catch(function(){ /* нет разрешения — ок */ });
+      }
+    } catch(err){ /* старый браузер */ }
+  }
+  probeScreens();
+
+  /* ================= devtools эвристика ================= */
+  var devOverride = false;
+  try {
+    var probe = /./;
+    probe.toString = function(){ devOverride = true; return "proctor"; };
+    // открытие консоли с внутренностями объекта заставит вызвать toString
+    if (window.console && console.log) { console.log("%c", probe); }
+  } catch(e){}
+  var devLast = null;
+  function devtoolsCheck(){
+    var wDiff = Math.abs(window.outerWidth - window.innerWidth);
+    var hDiff = Math.abs(window.outerHeight - window.innerHeight);
+    var zoom = (window.devicePixelRatio || 1) / dprBase;
+    var suspected = devOverride || wDiff > 170 || hDiff > 170;
+    var why = devOverride ? "console-хук" : (wDiff > 170 || hDiff > 170 ? "размер окна" : "");
+    if (suspected !== devLast){
+      devLast = suspected;
+      S.devtools = suspected;
+      if (S.running){
+        log(suspected ? "danger" : "ok",
+            suspected ? "Похоже, открыты инструменты разработчика (" + why + ")" : "Инструменты разработчика закрыты / не обнаружены");
+      }
+      render();
+    }
+    // масштаб страницы
+    if (S.running && Math.abs(zoom - 1) > 0.12){
+      if (!S._zoomLogged || Math.abs(S._zoomLogged - zoom) > 0.12){
+        S._zoomLogged = zoom;
+        log("warn", "Масштаб страницы изменён: ~" + Math.round(zoom * 100) + "%");
+      }
+    } else { S._zoomLogged = null; }
+  }
+
+  /* ================= таймеры: простой, время, рендер ================= */
+  var cam = { stream: null, prev: null, motion: 0, light: 0 };
+
+  function tick(){
+    var now = Date.now();
+
+    // простой
+    var since = now - S.lastActivity;
+    var wasIdle = S.idle;
+    S.idle = since >= S.idleThreshold;
+    if (S.idle && !wasIdle && S.running){
+      S.idleCount++;
+      log("warn", "Нет активности пользователя " + Math.round(since/1000) + " с");
+    }
+    if (!S.idle && wasIdle && S.running){
+      log("ok", "Активность возобновилась");
+    }
+
+    // накопление времени вне вкладки / без фокуса (для живого счётчика)
+    var awayLive = S.awayTotalMs + (S.hiddenSince ? now - S.hiddenSince : 0);
+    var blurLive = S.blurTotalMs + (S.blurSince ? now - S.blurSince : 0);
+    S._awayLive = awayLive;
+    S._blurLive = blurLive;
+
+    els.sessionTimer.textContent = clock(now - S.startedAt);
+    render();
+  }
+
+  function risk(){
+    var now = Date.now();
+    var away = S._awayLive || S.awayTotalMs;
+    var r = 0;
+    r += S.awayCount * 6;
+    r += Math.min(25, Math.round(away / 4000));
+    r += S.blurCount * 3;
+    r += S.pastes * 3 + S.copies * 0.8 + S.cuts * 2;
+    r += S.contextMenu * 2 + S.drags * 1;
+    r += S.suspicious * 4;
+    r += (S.devtools ? 18 : 0);
+    r += S.idleCount * 3;
+    r += Math.min(10, Math.max(0, S.mouseOuts - 2) * 2);
+    r += (!S.online ? 5 : 0);
+    return Math.min(100, Math.round(r));
+  }
+
+  function cls(card, kind){ card.className = "card" + (kind ? " " + kind : ""); }
+
+  function renderScreen(){
+    var w = window.innerWidth, h = window.innerHeight;
+    els["v-screen"].textContent = w + "×" + h;
+    els["m-screen"].textContent = "DPR " + (window.devicePixelRatio || 1).toFixed(2) +
+      " · экран " + (screen.width || "?") + "×" + (screen.height || "?") +
+      " · экранов: " + screensInfo;
+  }
+
+  function render(){
+    var now = Date.now();
+
+    /* --- строка статуса --- */
+    var pill = els.statusPill, txt = els.statusText;
+    if (!S.running){
+      pill.className = "status warn"; txt.textContent = "мониторинг на паузе";
+    } else if (!S.tabVisible){
+      pill.className = "status bad"; txt.textContent = "пользователь НЕ на вкладке";
+    } else if (!S.focus){
+      pill.className = "status warn"; txt.textContent = "окно не в фокусе";
+    } else {
+      pill.className = "status"; txt.textContent = "пользователь на вкладке";
+    }
+
+    /* --- баннер --- */
+    var a = els.alert;
+    if (!S.running){
+      a.className = "alert warn";
+      els.alertIco.textContent = "⏸";
+      els.alertTitle.textContent = "Мониторинг на паузе — события не фиксируются";
+      els.alertSub.textContent = "Нажмите «Продолжить», чтобы возобновить наблюдение";
+    } else if (!S.tabVisible){
+      a.className = "alert bad";
+      els.alertIco.textContent = "🚫";
+      els.alertTitle.textContent = "Пользователь ушёл со вкладки!";
+      els.alertSub.textContent = "Уходов: " + S.awayCount + " · это классический признак попытки списать/подсмотреть ответ";
+    } else if (!S.focus){
+      a.className = "alert warn";
+      els.alertIco.textContent = "⚠️";
+      els.alertTitle.textContent = "Окно не в фокусе — возможно, открыто другое приложение";
+      els.alertSub.textContent = "Потерь фокуса: " + S.blurCount + " · без фокуса: " + secs(S._blurLive || 0);
+    } else if (S.idle){
+      a.className = "alert warn";
+      els.alertIco.textContent = "💤";
+      els.alertTitle.textContent = "Нет активности уже " + Math.round((now - S.lastActivity)/1000) + " с";
+      els.alertSub.textContent = "Порог простоя: " + Math.round(S.idleThreshold/1000) + " с · срабатываний: " + S.idleCount;
+    } else if (S.devtools){
+      a.className = "alert bad";
+      els.alertIco.textContent = "🛠";
+      els.alertTitle.textContent = "Похоже, открыты DevTools";
+      els.alertSub.textContent = "Проверка по эвристике (размер окна / консольный хук) — возможны ложные срабатывания";
+    } else {
+      a.className = "alert";
+      els.alertIco.textContent = "✅";
+      els.alertTitle.textContent = "Всё в порядке — пользователь на вкладке";
+      els.alertSub.textContent = "События фиксируются и выводятся на экран в реальном времени";
+    }
+
+    /* --- верхняя полоса цифр --- */
+    els.sAway.textContent = S.awayCount;
+    els.sAwayTime.textContent = secs(S._awayLive || S.awayTotalMs);
+    els.sBlur.textContent = S.blurCount;
+    var r = risk();
+    els.sRisk.textContent = r + "%";
+    els.sRisk.style.color = r < 20 ? "#86efac" : (r < 55 ? "#fbbf24" : "#fca5a5");
+
+    /* --- карточки --- */
+    els["v-tab"].textContent = S.tabVisible ? "активна" : "скрыта";
+    els["m-tab"].textContent = "уходов: " + S.awayCount + " · вне вкладки " + secs(S._awayLive || 0);
+    cls(els["c-tab"], S.tabVisible ? "ok" : "bad");
+
+    els["v-focus"].textContent = S.focus ? "в фокусе" : "нет фокуса";
+    els["m-focus"].textContent = "потерь: " + S.blurCount + " · без фокуса " + secs(S._blurLive || 0);
+    cls(els["c-focus"], S.focus ? "ok" : "warn");
+
+    els["v-fs"].textContent = S.fullscreen ? "включён" : "нет";
+    els["m-fs"].textContent = "выходов из него: " + S.fsExits;
+    cls(els["c-fs"], S.fullscreen ? "ok" : (S.fsExits ? "warn" : ""));
+
+    els["v-mouse"].textContent = S.mouseInside ? "внутри" : "снаружи";
+    els["m-mouse"].textContent = "выходов из окна: " + S.mouseOuts;
+    cls(els["c-mouse"], S.mouseInside ? "ok" : "warn");
+
+    var idleSec = Math.round((now - S.lastActivity)/1000);
+    els["v-idle"].textContent = S.idle ? "простой" : "есть";
+    els["m-idle"].textContent = "последнее действие: " + idleSec + " с назад";
+    cls(els["c-idle"], S.idle ? "warn" : "ok");
+
+    els["v-keys"].textContent = S.keystrokes;
+    els["m-keys"].textContent = "подозрительных: " + S.suspicious;
+    cls(els["c-keys"], S.suspicious ? "warn" : "ok");
+
+    els["v-clip"].textContent = S.copies + " / " + S.pastes;
+    els["m-clip"].textContent = "копий " + S.copies + " · вставок " + S.pastes + " · вырезаний " + S.cuts;
+    cls(els["c-clip"], (S.pastes || S.cuts) ? "warn" : "ok");
+
+    els["v-ctx"].textContent = S.contextMenu + " / " + S.selects;
+    els["m-ctx"].textContent = "drag&drop: " + S.drags;
+    cls(els["c-ctx"], S.contextMenu ? "warn" : "");
+
+    els["v-dev"].textContent = S.devtools ? "возможно открыты" : "не обнаружены";
+    els["m-dev"].textContent = "эвристика по размеру окна и консоли";
+    cls(els["c-dev"], S.devtools ? "bad" : "ok");
+
+    renderScreen();
+    cls(els["c-screen"], "");
+
+    els["v-net"].textContent = S.online ? "online" : "offline";
+    els["m-net"].textContent = "переключений: " + S.netSwitches + " · " + (navigator.connection && navigator.connection.effectiveType ? navigator.connection.effectiveType : "—");
+    cls(els["c-net"], S.online ? "ok" : "bad");
+
+    els["v-cam"].textContent = S.camOn ? "вкл." : "выкл.";
+    els["m-cam"].textContent = S.camOn ? ("движение: " + (cam.motion > 8 ? "есть" : "нет") + " · свет " + cam.light) : "опционально";
+    cls(els["c-cam"], S.camOn ? "ok" : "");
+  }
+
+  /* ================= камера (опционально) ================= */
+  var camCanvas = document.createElement("canvas");
+  camCanvas.width = 64; camCanvas.height = 48;
+  var camCtx = camCanvas.getContext("2d", { willReadFrequently: true });
+
+  function camLoop(){
+    if (!cam.stream || !S.camOn) return;
+    try {
+      camCtx.drawImage(els.camVideo, 0, 0, camCanvas.width, camCanvas.height);
+      var data = camCtx.getImageData(0, 0, camCanvas.width, camCanvas.height).data;
+      var sum = 0, diff = 0;
+      var prev = cam.prev;
+      for (var i = 0; i < data.length; i += 4){
+        var g = (data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114);
+        sum += g;
+        if (prev) diff += Math.abs(g - prev[i/4]);
+      }
+      var n = data.length / 4;
+      var light = Math.round(sum / n);
+      var motion = prev ? Math.round(diff / n) : 0;
+      cam.light = light;
+      cam.motion = motion;
+      var next = new Float32Array(n);
+      for (var j = 0; j < data.length; j += 4){
+        next[j/4] = data[j]*0.299 + data[j+1]*0.587 + data[j+2]*0.114;
+      }
+      cam.prev = next;
+      els.camMotion.textContent = motion > 8 ? "есть (" + motion + ")" : "нет (" + motion + ")";
+      els.camLight.textContent = light + " / 255" + (light < 25 ? " — темно" : "");
+      els["m-cam"].textContent = "движение: " + (motion > 8 ? "есть" : "нет") + " · свет " + light;
+    } catch(e){ /* кадр ещё не готов */ }
+    setTimeout(camLoop, 700);
+  }
+
+  els.btnCam.addEventListener("click", function(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      toast("Браузер не поддерживает камеру (или страница в iframe без разрешения)");
+      log("warn", "Камера недоступна в этом окружении");
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: false })
+      .then(function(stream){
+        cam.stream = stream;
+        els.camVideo.srcObject = stream;
+        els.camVideo.play().catch(function(){});
+        S.camOn = true;
+        els.camBox.classList.add("on");
+        log("info", "Камера включена — идёт локальный анализ кадра");
+        camLoop(); render();
+      })
+      .catch(function(err){
+        log("warn", "Не удалось включить камеру: " + (err && err.name ? err.name : "ошибка"));
+        toast("Камера недоступна: " + (err && err.name ? err.name : "ошибка"));
+      });
+  });
+  els.btnCamOff.addEventListener("click", function(){
+    if (cam.stream){ cam.stream.getTracks().forEach(function(t){ t.stop(); }); }
+    cam.stream = null; cam.prev = null; S.camOn = false;
+    els.camBox.classList.remove("on");
+    els.camMotion.textContent = "—"; els.camLight.textContent = "—";
+    log("info", "Камера выключена");
+    render();
+  });
+
+  /* ================= кнопки ================= */
+  els.btnPause.addEventListener("click", function(){
+    S.running = !S.running;
+    els.btnPause.textContent = S.running ? "⏸ Пауза" : "▶ Продолжить";
+    log(S.running ? "ok" : "info", S.running ? "Мониторинг возобновлён" : "Мониторинг поставлен на паузу");
+    render();
+  });
+
+  els.btnFs.addEventListener("click", function(){
+    if (!document.fullscreenElement){
+      var el = document.documentElement;
+      var req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req){ toast("Полный экран недоступен"); return; }
+      Promise.resolve(req.call(el)).catch(function(){ toast("Полный экран заблокирован браузером"); });
+    } else {
+      document.exitFullscreen().catch(function(){});
+    }
+  });
+
+  els.btnReset.addEventListener("click", function(){
+    S.startedAt = Date.now();
+    S.awayCount = 0; S.awayTotalMs = 0; S.blurCount = 0; S.blurTotalMs = 0;
+    S.fsExits = 0; S.mouseOuts = 0; S.keystrokes = 0; S.suspicious = 0;
+    S.copies = 0; S.pastes = 0; S.cuts = 0; S.contextMenu = 0; S.selects = 0; S.drags = 0;
+    S.idleCount = 0; S.netSwitches = 0; S.events = []; S.lastActivity = Date.now();
+    S.hiddenSince = null; S.blurSince = null;
+    els.log.innerHTML = ""; els.logCount.textContent = "0";
+    log("info", "Счётчики сброшены, новая сессия");
+    toast("Сброшено");
+    render();
+  });
+
+  els.idleSel.addEventListener("change", function(){
+    S.idleThreshold = parseInt(els.idleSel.value, 10) || 15000;
+    log("info", "Порог простоя: " + Math.round(S.idleThreshold/1000) + " с");
+  });
+
+  /* ================= отчёт ================= */
+  function buildReport(){
+    function f(ms){
+      var s = Math.floor(ms/1000);
+      return Math.floor(s/60) + "м " + pad(s%60) + "с";
+    }
+    var data = {
+      sessionId: S.sessionId,
+      startedAt: new Date(S.startedAt).toISOString(),
+      durationMs: Date.now() - S.startedAt,
+      duration: f(Date.now() - S.startedAt),
+      risk: risk() + "%",
+      summary: {
+        awayFromTabCount: S.awayCount,
+        awayFromTabTotal: f(S._awayLive || 0),
+        windowBlurCount: S.blurCount,
+        windowBlurTotal: f(S._blurLive || 0),
+        cursorLeftWindow: S.mouseOuts,
+        fullscreen: S.fullscreen,
+        fullscreenExits: S.fsExits,
+        keystrokes: S.keystrokes,
+        suspiciousShortcuts: S.suspicious,
+        copy: S.copies, cut: S.cuts, paste: S.pastes,
+        contextMenu: S.contextMenu, selections: S.selects, drags: S.drags,
+        devtoolsSuspected: S.devtools,
+        idleEvents: S.idleCount,
+        netSwitches: S.netSwitches,
+        online: S.online,
+        cameraOn: S.camOn
+      },
+      environment: {
+        userAgent: navigator.userAgent,
+        platform: navigator.userAgentData ? navigator.userAgentData.platform : (navigator.platform || ""),
+        language: navigator.language,
+        screen: (screen.width || 0) + "x" + (screen.height || 0),
+        window: window.innerWidth + "x" + window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      events: S.events.map(function(e){
+        return { at: e.t, tSec: Math.round(e.rel/1000), level: e.sev, event: e.msg };
+      })
+    };
+    return JSON.stringify(data, null, 2);
+  }
+
+  els.btnReport.addEventListener("click", function(){
+    els.reportPre.textContent = buildReport();
+    els.modal.classList.add("on");
+  });
+  els.btnCloseModal.addEventListener("click", function(){ els.modal.classList.remove("on"); });
+  els.modal.addEventListener("click", function(e){ if (e.target === els.modal) els.modal.classList.remove("on"); });
+
+  els.btnCopy.addEventListener("click", function(){
+    var text = els.reportPre.textContent;
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("Отчёт скопирован"); }
+      catch(e){ toast("Не удалось скопировать"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ toast("Отчёт скопирован"); }).catch(fallback);
+    } else { fallback(); }
+  });
+
+  els.btnDownload.addEventListener("click", function(){
+    try {
+      var blob = new Blob([els.reportPre.textContent], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "proctor-report-" + S.sessionId + ".json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      toast("Файл отчёта сохранён");
+    } catch(e){ toast("Скачивание недоступно в этом окружении"); }
+  });
+
+  /* ================= периодические проверки ================= */
+  setInterval(devtoolsCheck, 1200);
+  setInterval(tick, 250);
+  setInterval(function(){ render(); }, 3000);
+  window.addEventListener("mousemove", function(){ if (S.idle) render(); }, { passive: true });
+
+  /* ================= старт ================= */
+  els.idleSel.value = String(S.idleThreshold);
+  log("ok", "Мониторинг запущен · сессия " + S.sessionId);
+  log("info", "Отслеживается: вкладка, фокус окна, полный экран, курсор, простой, клавиши, буфер обмена, контекстное меню, drag&drop, DevTools, сеть, размер экрана");
+  log("info", "Окружение: " + (screen.width || "?") + "×" + (screen.height || "?") + " · окно " + window.innerWidth + "×" + window.innerHeight + " · DPR " + (window.devicePixelRatio || 1));
+  tick();
+  devtoolsCheck();
+  render();
+})();
+</script>
+</body>
+</html>
